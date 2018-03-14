@@ -1,0 +1,236 @@
+function love.load(arg)
+  if arg and arg[#arg] == "-debug" then require("mobdebug").start() end
+  love.window.setMode(0,0)
+  local x = love.graphics.getWidth()
+  local y = love.graphics.getHeight()
+  sfx = 1980/x
+  sfy = 1080/y
+  love.window.setMode(1200*sfx,1000*sfy)
+  Restart()
+end
+function love.draw()
+  font = love.graphics.newFont(26)
+  love.graphics.setFont(font)
+  love.graphics.setColor(255,255,255)
+  love.graphics.print("Player "..turn.." Turn",20*sfx,20*sfy)
+  love.graphics.print("Score:",20*sfx,810*sfy)
+  love.graphics.print("Player1: "..p1Score,20*sfx,850*sfy)
+  love.graphics.print("Player2: "..p2Score,20*sfx,890*sfy)
+  love.graphics.setColor(2, 170, 0)
+  love.graphics.rectangle("fill",150*sfx,200*sfy,900*sfx,600*sfy)
+  love.graphics.setColor(255,255,255)
+  love.graphics.circle("fill",playerBall.x,playerBall.y,10)
+  for i,v in ipairs(holes) do
+    love.graphics.setColor(0,0,0)
+    love.graphics.circle("fill",v.x,v.y,13)
+  end
+  for i,v in ipairs(balls) do
+    love.graphics.setColor(209,10,0)
+    love.graphics.circle("fill",v.x,v.y,10)
+  end
+  if click == true then
+    love.graphics.setColor(122, 81, 0)
+    local dX = playerBall.x - mX
+    local dY = playerBall.y - mY
+    if math.sqrt(dX*dX+dY*dY) > 200 then
+      mX = (dX/math.sqrt(dX*dX+dY*dY))*200
+      mY = (dY/math.sqrt(dX*dX+dY*dY))*200
+      love.graphics.line(playerBall.x-mX,playerBall.y-mY,playerBall.x,playerBall.y)
+    else
+      love.graphics.line(mX,mY,playerBall.x,playerBall.y)
+    end
+    
+  end
+  if #balls == 0 then
+    if p1Score > p2Score then
+      love.graphics.print("Player1 Wins!",510*sfx,500*sfy)
+    else
+      love.graphics.print("Player2 Wins!",510*sfx,500*sfy)
+    end
+    won = true
+    if BtnPress(500*sfx,700*sfx,650*sfy,600*sfy) then
+      love.graphics.setColor(194, 196, 198)
+    else
+      love.graphics.setColor(229, 231, 234)
+    end
+    love.graphics.rectangle("fill",500*sfx,600*sfy,200*sfx,50*sfy)
+    love.graphics.setColor(0,0,0)
+    love.graphics.print("Restart",550*sfx,620*sfy)
+  end
+end
+function love.update()
+  mX = love.mouse.getX()
+  mY = love.mouse.getY()
+  if love.mouse.isDown(1) then
+    click = true
+  else
+    click = false
+  end
+  for i,v in ipairs(holes) do
+    if CheckCollision(v.x,v.y,10,playerBall.x,playerBall.y,10) then
+      playerBall.x = 300
+      playerBall.y = 500
+      playerBall.speed = 0
+    end
+  end
+  for i,v in ipairs(balls) do
+    if v.speed > 0 then
+      v.x = v.x + v.xm*v.speed
+      v.y = v.y + v.ym*v.speed
+      v.speed = v.speed -0.12
+    else
+      v.xm = 0
+      v.ym = 0
+    end
+     if v.y>210*sfy and v.y<790*sfy then
+    else
+      v.ym = v.ym*-1
+    end
+    if v.x>160*sfx and v.x<1040*sfx then
+    else
+      v.xm = v.xm*-1
+    end
+    for n,m in ipairs(holes) do
+      if CheckCollision(v.x,v.y,10,m.x,m.y,12) then
+        table.remove(balls,i)
+        if turn == 2 then
+          p1Score = p1Score+ 1
+        else
+          p2Score = p2Score+ 1
+        end
+      end
+    end
+    if CheckCollision(playerBall.x,playerBall.y,10,v.x,v.y,10) then
+      collisionRes(playerBall,v)
+    end
+    for n,m in ipairs(balls) do
+      if not(m.x == v.x and m.y == v.y) then
+        if CheckCollision(v.x,v.y,10,m.x,m.y,10) then
+          collisionRes(v,m)
+        end
+      end
+    end
+  end
+  if playerBall.speed > 0 then
+    playerBall.speed = playerBall.speed - 0.12
+    if playerBall.y>210*sfy and playerBall.y<790*sfy then
+    else
+      playerBall.ym = playerBall.ym*-1
+    end
+    if playerBall.x>160*sfx and playerBall.x<1040*sfx then
+    else
+      playerBall.xm = playerBall.xm*-1
+    end
+    playerBall.x = playerBall.x + playerBall.xm*playerBall.speed
+    playerBall.y = playerBall.y + playerBall.ym*playerBall.speed
+  else
+    playerBall.xm = 0
+    playerBall.ym = 0
+  end
+end
+function love.mousereleased()
+  
+  if playerBall.speed <= 0 and won == false then
+    if turn == 1 then
+      turn = 2
+    else
+      turn = 1
+    end
+    local dX = playerBall.x - mX
+    local dY = playerBall.y - mY
+    if math.sqrt(dX*dX+dY*dY) > 200 then
+      mX = playerBall.x - mX
+      mY = playerBall.y - mY
+    end
+    xdir = 1
+    ydir = 1
+    playerBall.xm = playerBall.x - mX
+    playerBall.ym = playerBall.y - mY
+    playerBall.speed = math.sqrt(playerBall.xm*playerBall.xm+playerBall.ym*playerBall.ym)
+    playerBall.xm = playerBall.xm/playerBall.speed
+    playerBall.ym = playerBall.ym/playerBall.speed
+    playerBall.speed = playerBall.speed/10
+  end
+  if won == true and BtnPress(500,700,650,600) then
+    Restart()
+  end
+end
+function CheckCollision(ax1,ay1,r1,ax2,ay2,r2)
+  local dx = ax1-ax2
+  local dy = ay1-ay2
+  local totalR = r1+r2
+  if dx*dx+dy*dy <= totalR*totalR then
+    return true
+  else 
+    return false
+  end
+end
+function collisionRes(obj1,obj2)
+  local mag = (math.abs(obj1.x-obj2.x))^2 + (math.abs(obj1.y-obj2.y))^2
+  mag = math.sqrt(mag)
+  local nx = (obj1.x-obj2.x)/mag
+  local ny = (obj1.y-obj2.y)/mag
+  local qx = -ny
+  local qy = nx
+  local vn1 = (obj1.xm*nx+obj1.ym*ny) 
+  local vq1 = (obj1.xm*qx+obj1.ym*qy)
+  local vn2 = (obj2.xm*nx+obj2.ym*ny)
+  local vq2 = (obj2.xm*qx+obj2.ym*qy)
+  local x1 = nx*vn2+qx*vq1
+  local x2 = nx*vn1+qx*vq2
+  local y1 = ny*vn2+nx*vq1
+  local y2 = ny*vn1+nx*vq2
+  obj1.xm=x1
+  obj1.ym=y1
+  obj2.xm=x2
+  obj2.ym=y2
+  obj2.speed = obj1.speed
+end
+function BtnPress(xs,xlim,ys,ylim)
+  local x = love.mouse.getX()
+  local y = love.mouse.getY()
+  if xs < x and x < xlim and ys > y and y > ylim then
+    return true
+  else
+    return false
+  end
+end
+function Restart()
+  turn = 1
+  p1Score = 0
+  p2Score = 0
+  won = false
+  
+  playerBall = {}
+  playerBall.x =  300*sfx
+  playerBall.y = 500*sfy
+  playerBall.speed = 0
+  playerBall.xm = 0
+  playerBall.ym = 0
+  
+  balls = {}
+  for i = 0,4 do
+    for n = 0,i do
+      local ball = {}
+      ball.x = (700+23*i)*sfx
+      ball.y = ((500-11*i)+23*n)*sfy
+      ball.speed = 1
+      ball.xm = 0
+      ball.ym = 0
+      table.insert(balls,ball)
+    end
+  end
+  holes = {}
+  for i = 0,5 do
+    local count = 0
+    local hole = {}
+    if i > 2 then
+      count = 3
+      hole.y = 778*sfy
+    else
+      hole.y = 215*sfy
+    end
+    hole.x = (165 + 432.5*(i-count))*sfx
+    table.insert(holes,hole)
+  end
+end

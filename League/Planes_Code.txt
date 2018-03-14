@@ -1,0 +1,747 @@
+require"Tserial"
+function love.load(arg)
+  if arg and arg[#arg] == "-debug" then require("mobdebug").start() end
+  love.window.setMode(0,0)
+  local x = love.graphics.getWidth()
+  local y =love.graphics.getHeight()
+  sfx = x/1920
+  sfy = sfx
+  love.window.setMode(x,y)
+  
+  save = io.open("Save.txt","r")
+  io.input(save)
+  
+  animations={}
+  animations[0] = newAnimation(love.graphics.newImage("planeSheet.png"),180,60,0.1,true)
+  animations[1] = newAnimation(love.graphics.newImage("enemyPlaneSheet.png"),180,60,0.1,true)
+  animations[2] = newAnimation(love.graphics.newImage("BlankSheet.png"),600,600,0.25,false)
+  
+  src1 = love.audio.newSource("BGmusic.wav")
+  src1:setLooping(true)
+  src1:setVolume(0.1)
+  --src1:play()
+ 
+  inHangar = false
+  inMap = false
+  level = 1
+
+  player = {}
+  player.height = 180*sfx
+  player.width = 60*sfy
+  player.shots= {}
+  player.hitTime = 3
+  player.hit = false
+  player.hpUp = 0
+  player.gunUp = 1
+  player.speed = 8
+  player.blankFired = false
+  player.blnkUp = 540
+  player.blankTimer = player.blnkUp
+  player.Unlocked = 1
+  player.lifeCost = 60
+  player.BlankCost = 10
+  player.SpdCost = 40
+  player.money = 0
+  player.hp = 5 + player.hpUp
+  player.gunUpCost = 100
+  
+  PlayerImg = love.graphics.newImage("plane.png")
+  PlayerLife = love.graphics.newImage("life.png")
+  PlayerBlank = love.graphics.newImage("Blank.png")
+  
+  local saveData = io.read("*a")
+  loadstring(saveData)()
+  player.hp = 5 + player.hpUp
+  io.close(save)
+  
+  save2 = io.open("Save.txt","w")
+  io.output(save2)
+  bg = {}
+  bg.clouds = {}
+  Icloud = love.graphics.newImage("cloud.png")
+  makeClouds(3)
+
+  bullet = {}
+  bullet.image = love.graphics.newImage("bullet.png")
+  bullet.height = 4*sfy
+  bullet.width = 10*sfx
+  
+  enemyBullet = {}
+  enemyBullet.image = love.graphics.newImage("enemyBullet.png")
+
+  Hangar =  love.graphics.newImage("Hangar.png")
+  Coin = love.graphics.newImage("coin.png")
+  Wrench = love.graphics.newImage("wrench.png")
+  
+  lifeUp = {}
+  lifeUp.btn = love.graphics.newImage("LifeUpBtn.png")
+  lifeUp.press = love.graphics.newImage("LifeUpPressed.png")
+  
+  GunUp = {}
+  GunUp.btn = love.graphics.newImage("GunUpBtn.png")
+  GunUp.press = love.graphics.newImage("GunUpPressed.png")
+  
+  
+  SpdUp = {}
+
+  SpdUp.btn = love.graphics.newImage("spdUpBtn.png")
+  SpdUp.press = love.graphics.newImage("spdUpPressed.png")
+  
+  BlankUp = {}
+  BlankUp.btn = love.graphics.newImage("BlankUpBtn.png")
+  BlankUp.press = love.graphics.newImage("BlankUpPressed.png")
+  
+  Depart = {}
+  Depart.btn = love.graphics.newImage("Departure.png")
+  Depart.press = love.graphics.newImage("DeparturePressed.png")
+  
+  map = love.graphics.newImage("Map.png")
+  lock = love.graphics.newImage("lock.png")
+  
+  enemies = {}
+  startGame()
+end
+function love.draw()
+  font = love.graphics.newFont(16)
+  love.graphics.setFont(font)
+  love.graphics.setColor(127,176,255,255)
+  love.graphics.rectangle("fill",0,0,1920*sfx,1080*sfy)
+  love.graphics.setColor(255,255,255)
+  love.graphics.draw(Coin,20,20,0,sfx,sfy)
+  love.graphics.setColor(0,0,0)
+  love.graphics.print(player.money,80*sfx,35*sfy,0,1.3,1.3)
+  if inHangar == false then
+    if inMap == false then
+      if inMenu == true then
+        love.graphics.setColor(255,255,255)
+        love.graphics.draw(Hangar,0,0,0,sfx,sfy)
+        love.graphics.setColor(0,0,0)
+        love.graphics.print("Use arrow keys to move and space to shoot. Press 'c' to use bullet dematerialiser",530*sfx, 400*sfy,0,1.3)
+        if BtnPress(790*sfx,1088*sfx,536*sfy,440*sfy) then --PLay button
+          love.graphics.setColor(190, 192, 196)
+        else
+          love.graphics.setColor(224, 226, 229)
+        end
+        love.graphics.rectangle("fill",(1980/2-200)*sfx,(1080/2-100)*sfy,300*sfx,100*sfy)
+        if BtnPress(790*sfx,1088*sfx,650*sfy,550*sfy) then --NewGame button
+          love.graphics.setColor(190, 192, 196)
+        else
+          love.graphics.setColor(224, 226, 229)
+        end
+        love.graphics.rectangle("fill",790*sfx,550*sfy,300*sfx,100*sfy)
+        love.graphics.setColor(0,0,0)
+        love.graphics.print("Play",905*sfx,480*sfy,0,1.5,1.5)
+        love.graphics.print("New Game",860*sfx,585*sfy,0,1.5,1.5)
+      else
+        love.graphics.setColor(255,255,255)
+        if won == true or lost == true then --mouse visibility
+          love.mouse.setVisible(true)
+        else
+          love.mouse.setVisible(false)
+        end
+        love.graphics.setColor(255,255,255,255)
+        for i,v in ipairs(bg.clouds) do --drawing clouds
+          love.graphics.draw(Icloud,v.x,v.y,0,sfx,sfy)
+        end
+        if level == 3 then
+          love.graphics.setColor(255,0,0)
+          for i,v in ipairs(enemies) do
+            for i = 0,v.hp,1 do
+              love.graphics.rectangle("fill",600*sfx+i*900*sfx/v.mxhp,1050*sfy,900/v.mxhp,20)
+            end
+          end
+          love.graphics.setColor(255,255,255)
+          love.graphics.print("Harry Grandon",950*sfx,1020*sfy,0,1.7,1.7)
+        end
+        if lost == false then --Lost text and drawing planes
+          for i,v in ipairs(enemies) do --drawing enemies
+            if v.hit == false then
+              if v.sType == 1 then
+                animationDraw(animations[1],v.x,v.y,0,sfx,sfy)
+              else
+                love.graphics.draw(v.image,v.x,v.y,0,sfx,sfy)
+              end
+            else
+              love.graphics.draw(v.dmg,v.x,v.y,0,sfx,sfy)
+            end
+          end
+          animationDraw(animations[0],player.x,player.y,0,sfx,sfy)
+        else
+          love.graphics.print("You Lose",830*sfx,480*sfy,0,2,2)
+         
+        end
+        for i,v in ipairs(player.shots) do -- drawing player shots
+          love.graphics.draw(bullet.image,v.x,v.y)
+        end
+        for i,n in ipairs(enemies) do --drawing enemy shots
+          for i,v in ipairs(n.shots) do
+            love.graphics.draw(enemyBullet.image,v.x,v.y)
+          end
+        end
+        if won == true then -- Win text
+          love.graphics.print("You WIN",830*sfx,480*sfy,0,2,2)
+        end
+        if player.hit == true then --player damaged
+          love.graphics.setColor(255,0,0,255)
+          love.graphics.rectangle("fill",0,0,1920*sfx,1080*sfy)
+        end
+        for i = 1,player.hp do --lives
+          love.graphics.draw(PlayerLife,(60+i*60)*sfx,1000*sfy,0,sfx,sfy)
+        end
+        if player.blankFired == true then
+          animationDraw(animations[2],player.x-220*sfx,player.y-280*sfy,0,sfx,sfy)
+        else
+          love.graphics.draw(PlayerBlank,120*sfx,940*sfy,0,sfx,sfy)
+        end
+        if lost == true or won == true then --endgame buttons
+          if BtnPress(770*sfx,1070*sfx,650*sfy,550*sfy) then
+            love.graphics.setColor(190, 192, 196)
+          else
+            love.graphics.setColor(224, 226, 229)
+          end
+          love .graphics.rectangle("fill",770*sfx,550*sfy,300*sfx,100*sfy)
+          if BtnPress(770*sfx,1070*sfx,770*sfy,670*sfy) then
+            love.graphics.setColor(190, 192, 196)
+          else
+            love.graphics.setColor(224, 226, 229)
+          end
+          
+          love .graphics.rectangle("fill",770*sfx,670*sfy,300*sfx,100*sfy)
+          if BtnPress(770*sfx,1070*sfx,890*sfy,790*sfy) then
+            love.graphics.setColor(190, 192, 196)
+          else
+            love.graphics.setColor(224, 226, 229)
+          end
+          love.graphics.rectangle("fill",770*sfx,790*sfy,300*sfx,100*sfy)
+          love.graphics.setColor(0,0,0)
+          love.graphics.print("Menu",890*sfx,595*sfy,0,1.4,1.4)
+          love.graphics.print("Quit",895*sfx,715*sfy,0,1.4,1.4)
+          love.graphics.print("Hangar",880*sfx,835*sfy,0,1.4,1.4)
+        end
+      end
+    else
+      love.graphics.draw(map,0,0,0,sfx,sfy)
+      if BtnPress(300*sfx,350*sfx,250*sfy,200*sfy) then
+        love.graphics.setColor(190, 192, 196)
+      else
+        love.graphics.setColor(224, 226, 229)
+      end
+      love.graphics.rectangle("fill",300*sfx,200*sfy,50*sfx,50*sfy)
+      if BtnPress(300*sfx,350*sfx,350*sfy,300*sfy) and player.Unlocked >= 2 then
+        love.graphics.setColor(190, 192, 196)
+      else
+        love.graphics.setColor(224, 226, 229)
+      end
+      love.graphics.rectangle("fill",300*sfx,300*sfy,50*sfx,50*sfy)
+      if BtnPress(450*sfx,500*sfx,350*sfy,300*sfy) and player.Unlocked >= 3 then
+        love.graphics.setColor(190, 192, 196)
+      else
+        love.graphics.setColor(224, 226, 229)
+      end
+      love.graphics.rectangle("fill",450*sfx,300*sfy,50*sfx,50*sfy)
+      love.graphics.setColor(0,0,0)
+      love.graphics.print("1",320*sfx,220*sfy,0,1.4,1.4)
+      love.graphics.setColor(255,255,255)
+      if player.Unlocked == 1 then
+        love.graphics.draw(lock,250*sfx,300*sfy,0,sfx,sfy)
+        love.graphics.draw(lock,400*sfx,300*sfy,0,sfx,sfy)
+      elseif player.Unlocked == 2 then
+        love.graphics.draw(lock,400*sfx,300*sfy,0,sfx,sfy)
+      end
+      love.graphics.setColor(0,0,0)
+      love.graphics.print("2",320*sfx,320*sfy,0,1.4,1.4)
+      love.graphics.print("3",470*sfx,320*sfy,0,1.4,1.4)
+      
+    end
+  else
+    love.graphics.setColor(255,255,255)
+    love.graphics.draw(Hangar,0,0,0,sfx,sfy)
+    love.graphics.draw(Wrench,1300*sfx,40*sfy,0,sfx,sfy)
+    local temp
+    --Drawing LifeUP Upgrade
+    if BtnPress(1300*sfx,1600*sfx,180*sfy,130*sfy) then
+      temp = lifeUp.press
+    else
+      temp = lifeUp.btn
+    end
+    love.graphics.draw(temp,1300*sfx,130*sfy,0,sfx,sfy)
+    --Drawing Leave Btn
+    love.graphics.setColor(255,255,255)
+    if BtnPress(120*sfx,420*sfx,890*sfy,800*sfy) then
+      temp = Depart.press
+    else
+      temp = Depart.btn
+    end
+    love.graphics.draw(temp,120*sfx,800*sfy,0,sfx,sfy)
+    --Drawing GunUp Button
+    if BtnPress(1300*sfx,1600*sfx,250*sfy,200*sfy) then
+      temp = GunUp.press
+    else
+      temp = GunUp.btn
+    end
+    love.graphics.draw(temp,1300*sfx,200*sfy,0,sfx,sfy)
+    --Drawing Speed Up Button
+    if BtnPress(1300*sfx,1600*sfx,320*sfy,270*sfy) then
+      temp = SpdUp.press
+    else
+      temp = SpdUp.btn
+    end
+    love.graphics.draw(temp,1300*sfx,270*sfy,0,sfx,sfy)
+    --Drawing Blank Up Button
+    if BtnPress(1300*sfx,1600*sfx,390*sfy,340*sfy) then
+      temp = BlankUp.press
+    else
+      temp = BlankUp.btn
+    end
+    love.graphics.draw(temp,1300*sfx,340*sfy,0,sfx,sfy)
+    --Drawing Prices
+    love.graphics.setColor(255,238,0)
+    love.graphics.print(player.lifeCost,1615*sfx,147*sfy,0,1.6,1.6)
+    love.graphics.print(player.gunUpCost,1615*sfx,210*sfy,0,1.6,1.6)
+    love.graphics.print(player.SpdCost,1615*sfx,283*sfy,0,1.6,1.6)
+    love.graphics.print(player.BlankCost,1615*sfx,356*sfy,0,1.6,1.6)
+  end
+end
+function love.update(dt)
+  local remshot = {}
+  local remEnemy = {}
+  local remEnShot = {}
+  if player.blankFired == true then
+    player.blankTimer = player.blankTimer - 1
+    if player.blankTimer == 0 then
+      player.blankTimer = player.blnkUp
+      player.blankFired = false
+    end
+  end
+   for i = 0,2 do
+     if animations[i].done == false then
+        animations[i].currentTime = animations[i].currentTime + dt
+        if animations[i].currentTime >= animations[i].duration and animations[i].loop == true then
+          animations[i].currentTime = animations[i].currentTime - animations[i].duration
+        elseif animations[i].currentTime >= animations[i].duration and animations[i].loop == false then
+          animations[i].done = true
+          animations[i].currentTime = 0
+        end
+      end
+    end
+  if inHangar == false then
+    if inMap == false then
+      if inMenu == false then
+        if endWave == true then
+          wave = wave + 1
+          Wave(level,wave)
+          endWave = false
+        end
+        if player.hp == 0 then
+              lost = true
+        end
+        for i,v in ipairs(enemies) do
+          if v.hit == true then
+            v.hitTimer = v.hitTimer - 1
+            if v.hitTimer == 0 then
+              v.hit = false
+              v.hitTimer = 3
+            end
+          end
+        end
+        for i,v in ipairs(bg.clouds) do
+          if v.x > -128 then
+            v.x = v.x - 7
+          else
+            v.x = math.random(1990,2800)
+            v.y = math.random(50,(1080-120)*sfy)
+          end
+        end
+        if player.hit == true then
+          player.hitTime = player.hitTime-1
+          if player.hitTime == 0 then
+            player.hit = false
+            player.hitTime = 5
+          end
+        end
+        if won == false and lost == false  then
+          EndWave()
+          for i,v in ipairs(enemies) do
+            if v.y > 1000*sfy then
+              v.direction = -1
+            elseif v.y < 30 then
+              v.direction = 1
+            end
+            v.y = v.y + 3 * v.direction
+            v.timeShot = v.timeShot -1
+            if v.timeShot == 0 then
+              if v.sType == 1 then
+                local shot = {}
+                shot.xm = -9
+                shot.ym = 0
+                shot.x = v.x - 8
+                shot.y = v.y
+                shot.height = 10
+                shot.width = 10
+                table.insert(v.shots,shot)
+              elseif v.sType == 2 then
+                for i = 3,-3,-3 do
+                  local shot = {}
+                  shot.x = v.x - 8
+                  shot.y = v.y
+                  shot.height = 10
+                  shot.width = 10
+                  shot.xm = - 9
+                  shot.ym = i
+                  table.insert(v.shots,shot)
+                end
+              elseif v.sType == 3 then
+                  for i = -3,3,3 do
+                    local shot = {}
+                    shot.xm = -11
+                    shot.ym = i
+                    shot.x = v.x - 8
+                    shot.y = v.y+20*i
+                    shot.height = 10
+                    shot.width = 10
+                    table.insert(v.shots,shot)
+                  end
+                  for i = -1,1,2 do 
+                    local shot = {}
+                    local y=player.y-v.y
+                    local x=player.x-v.x
+                    shot.xm = (x/math.sqrt(x*x+y*y))*13
+                    shot.ym = (y/math.sqrt(x*x+y*y))*13
+                    shot.x = v.x - 8
+                    shot.y = v.y+40*i
+                    shot.height = 10
+                    shot.width = 10
+                    table.insert(v.shots,shot)
+                  end
+              end
+              v.timeShot = 40
+            end
+          end
+          for i,n in ipairs(enemies) do
+            for i,v in ipairs(n.shots)do
+              v.x = v.x + v.xm
+              v.y = v.y + v.ym
+              if v.x >1980 then
+                table.insert(remEnShot,i)
+              end
+            end
+          end
+        else
+          for x,n in ipairs(enemies) do
+            for i,v in ipairs(n.shots) do
+              table.remove(n.shots,i)
+            end
+          end
+        end
+        for i,v in ipairs(player.shots)do
+          for x,n in ipairs(enemies) do
+            if CheckCollision(v.x,v.y,v.width,v.height,n.x,n.y,n.height,n.width) then
+              n.hp = n.hp - 1
+              n.hit = true
+              if n.hp == 0 then
+                player.money = player.money + n.?
+                table.insert(remEnemy,x)
+              end
+              table.insert(remshot,i)
+            end
+            if v.y> 1075*sfy then
+              table.remove(player.shots,i)
+            end
+          end
+        end
+        for i,n in ipairs(enemies) do
+          for x,v in ipairs(n.shots)do
+            if CheckCollision(v.x,v.y,v.width,v.height,player.x,player.y,player.height,player.width) then
+              player.hp = player.hp - 1
+              player.hit = true        
+              table.remove(n.shots,x)
+            end
+            if v.y> 1075*sfy then
+              table.remove(n.shots,x)
+            end
+          end
+        end
+        for i,v in ipairs(player.shots)do
+          v.x = v.x + 12
+          v.y = v.y + v.ym
+          if v.x >1980 then
+            table.insert(remshot,i)
+          end
+        end
+        if won == true or lost == true then
+            for i,v in ipairs(enemies) do
+              table.insert(remEnemy,i)
+            end
+        end
+        for i,v in ipairs(remshot) do
+          table.remove(player.shots,v)
+        end
+        for i,v in ipairs(remEnemy) do
+          table.remove(enemies,v)
+        end
+        if love.keyboard.isDown("right") and player.x<1350*sfx and won == false then
+          player.x = player.x + player.speed
+        elseif love.keyboard.isDown("left") and player.x>5 and won == false then
+          player.x = player.x - player.speed
+        end
+        if love.keyboard.isDown("down") and player.y<1000*sfy and won == false then
+          player.y = player.y + player.speed
+        elseif love.keyboard.isDown("up") and player.y>5 and won == false then
+          player.y = player.y - player.speed
+        end
+      end
+    end
+  else
+    
+  end
+end
+function love.keyreleased(key)
+  if key == "space" and lost == false and won == false then
+    shoot(player.gunUp)
+  end
+  if key == "c" and lost == false and won == false and player.blankFired== false then
+    blank()
+  end
+end
+function love.mousereleased()
+  if inHangar == false then
+    if inMap == false then
+      if inMenu == true then
+        if BtnPress(790*sfx,1088*sfx,536*sfy,440*sfy) then
+          inMenu = false
+          inMap = true
+        end
+        if BtnPress(790*sfx,1088*sfx,650*sfy,550*sfy) then
+          newSave()
+        end
+      end
+    else
+      if BtnPress(300*sfx,350*sfx,250*sfy,200*sfy) then
+        level = 1
+        inMap = false
+      elseif BtnPress(300*sfx,350*sfx,350*sfy,300*sfy) and player.Unlocked >= 2 then
+        level = 2 
+        inMap = false
+      elseif BtnPress(450*sfx,500*sfx,350*sfy,300*sfy) and player.Unlocked >= 3 then
+        level = 3
+        inMap = false
+      end
+      
+    end
+  else
+    --LifeUp Btn
+    if BtnPress(1300*sfx,1600*sfx,180*sfy,130*sfy) and player.money >= player.lifeCost then
+      player.hpUp = player.hpUp +1
+      player.money = player.money - player.lifeCost
+      player.lifeCost = player.lifeCost + 60
+    end
+    --Leave Btn
+    if BtnPress(120*sfx,420*sfx,890*sfy,800*sfy) then
+      inHangar = false
+      startGame()
+    end
+    --GunUp Btn
+    if BtnPress(1300*sfx,1600*sfx,250*sfy,200*sfy) and player.money >= player.gunUpCost then
+      player.gunUp = player.gunUp + 1
+      player.money = player.money - player.gunUpCost
+      player.gunUpCost = player.gunUpCost + 100
+    end
+    --SpdUp Btn
+    if BtnPress(1300*sfx,1600*sfx,320*sfy,270*sfy) and player.money>= player.SpdCost then
+      player.speed = player.speed + 0.5
+      player.money = player.money - player.SpdCost
+      player.SpdCost = player.SpdCost + 30
+    end
+    --Blank Up Button
+    if BtnPress(1300*sfx,1600*sfx,390*sfy,340*sfy) and player.money >= player.BlankCost then
+      player.blnkUp = player.blnkUp - 50
+      player.money = player.money - player.BlankCost
+      player.BlankCost = player.BlankCost + 20
+    end
+  end
+  if won == true or lost == true then
+    if BtnPress(770*sfx,1070*sfx,650*sfy,550*sfy) then
+      startGame()
+    else if BtnPress(770*sfx,1070*sfx,770*sfy,670*sfy) then
+      local data = "player="..TSerialize(player)
+      io.write(data)
+      love.event.quit()
+    else if BtnPress(770*sfx,1070*sfx,890*sfy,790*sfy) then
+      inHangar = true
+    end
+    end
+  end
+end
+end
+function shoot(num)
+  if num>3 then
+    local dir = 1
+    for i = 0,num-4 do
+      dir = dir*-1
+      local shot = {}
+      shot.x = player.x+138*sfx
+      shot.y = player.y+43*sfy +8*i
+      shot.height = 4
+      shot.width = 10
+      shot.ym = 4*dir
+      table.insert(player.shots, shot)
+    end
+    num = 3
+  end
+  for i = 0,num-1 do
+    local shot = {}
+    shot.x = player.x+138*sfx
+    shot.y = player.y+43*sfy+8*i
+    shot.height = 4
+    shot.width = 10
+    shot.ym = 0
+    table.insert(player.shots, shot)
+  end
+end
+function blank()
+  animations[2].done = false
+  player.blankFired = true
+  for key,value in next,enemies,nil do
+    while #value.shots > 0 do
+      for i,v in pairs(value.shots) do
+        table.remove(value.shots,i)
+      end
+    end
+  end
+end
+function CheckCollision(ax1,ay1,aw,ah, bx1,by1,bw,bh)
+  local ax2,ay2,bx2,by2 = ax1 + aw, ay1 + ah, bx1 + bw, by1 + bh
+  return ax1 < bx2 and ax2 > bx1 and ay1 < by2 and ay2 > by1
+end
+function makeClouds(num)
+  for i = 1,num do
+    local cloud = {}
+    cloud.x = math.random(1990*sfx,2800*sfx)
+    cloud.y = math.random(50*sfy,(1080-120)*sfy)
+    table.insert(bg.clouds,cloud)
+  end
+end
+function makeEnemies(type,num)
+  for i = 1,num do
+    local enemy = {}
+    if type == 1 then
+      enemy.image = love.graphics.newImage("enemyPlane.png")
+      enemy.dmg = love.graphics.newImage("dmgEnemyPlane.png")
+      enemy.hp = 5
+      enemy.height = 180*sfx
+      enemy.width = 55*sfy
+      enemy.sType = 1
+      enemy.? = 10
+    elseif type == 2 then
+      enemy.image = love.graphics.newImage("enemyPlane2.png")
+      enemy.dmg = love.graphics.newImage("dmgEnemyPlane2.png")
+      enemy.hp = 8
+      enemy.height = 200*sfx
+      enemy.width = 35*sfy
+      enemy.? = 20
+      enemy.sType = 2
+    elseif type == 3 then
+      enemy.image = love.graphics.newImage("harry.png")
+      enemy.dmg = love.graphics.newImage("dmgHarry.png")
+      enemy.hp = 50
+      enemy.mxhp = 50
+      enemy.height = 180*sfx
+      enemy.width = 103*sfy
+      enemy.? = 100
+      enemy.sType = 3
+    end
+    enemy.y = (540 + 130 * i)*sfy
+    enemy.x = 1600*sfx
+    enemy.direction = 1
+    enemy.shots = {}
+    enemy.timeShot = 50
+    enemy.hit = false
+    enemy.hitTimer = 5
+    table.insert(enemies,enemy)
+  end
+end
+function Wave(lvl,num)
+  if lvl == 1 then
+    if num == 1 then
+      makeEnemies(1,2)
+    elseif num == 2 then
+      makeEnemies(2,1)
+    elseif num == 3 then
+      won = true
+      player.Unlocked = 2
+      endWave = true
+    end
+  elseif lvl == 2 then
+    if num==1 then
+      makeEnemies(2,1)
+    elseif num == 2 then
+      makeEnemies(2,3)
+    elseif num == 3 then
+      won = true
+      player.Unlocked = 3
+      endWave = true
+    end
+  elseif lvl == 3 then
+    if num == 1 then
+      makeEnemies(3,1)
+    elseif num == 2 then
+      won = true
+      player.Unlocked = 4
+      endWave = true
+    end
+  end
+end
+function EndWave()
+  if #enemies == 0 then
+    endWave = true
+  end
+end
+function startGame()
+  love.mouse.setVisible(true)
+  inMenu = true
+  endWave = true
+  wave = 0
+  lost = false
+  won= false
+  player.x = 100*sfx
+  player.y = 100*sfy
+  player.hp = 5 + player.hpUp
+  player.blankFired = false
+end
+function BtnPress(xs,xlim,ys,ylim)
+  local x = love.mouse.getX()
+  local y = love.mouse.getY()
+  if xs < x and x < xlim and ys > y and y > ylim then
+    return true
+  else
+    return false
+  end
+end
+function newAnimation(image, width, height, duration,loop)
+    local animation = {}
+    animation.spriteSheet = image;
+    animation.quads = {};
+    animation.loop = loop
+    animation.done = false
+ 
+    for y = 0, image:getHeight() - height, height do
+        for x = 0, image:getWidth() - width, width do
+            table.insert(animation.quads, love.graphics.newQuad(x, y, width, height, image:getDimensions()))
+        end
+    end
+ 
+    animation.duration = duration or 1
+    animation.currentTime = 0
+ 
+    return animation
+end
+function animationDraw(animation,x,y,r,sx,sy)
+  if animation.done == false then
+    local spriteNum = math.floor(animation.currentTime / animation.duration * #animation.quads) + 1
+    love.graphics.draw(animation.spriteSheet, animation.quads[spriteNum],x,y,r,sx,sy)
+  end
+end
+function newSave()
+  local data = "player={blankFired=false,width=50.625,y=564.375,hp=5,speed=8,Unlocked=1,BlankCost=10,shots={},hit=false,hpUp=0,money=0,SpdCost=40,blnkUp=540,x=242.66666666667,gunUp=1,lifeCost=60,blankTimer=540,height=120,hitTime=5,gunUpCost=100}"
+  loadstring(data)()
+end
